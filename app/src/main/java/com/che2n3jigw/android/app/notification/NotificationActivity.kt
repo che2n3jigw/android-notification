@@ -2,6 +2,7 @@ package com.che2n3jigw.android.app.notification
 
 import android.Manifest
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
@@ -12,6 +13,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationChannelGroupCompat
+import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.che2n3jigw.android.app.notification.databinding.ActivityNotificationBinding
@@ -23,6 +25,7 @@ class NotificationActivity : AppCompatActivity() {
     companion object {
         private const val CHANNEL_ID = "test_channel"
         private const val GROUP_ID = "my_group_01"
+        private const val NOTIFICATION_ID = 100
     }
 
     private lateinit var binding: ActivityNotificationBinding
@@ -41,23 +44,28 @@ class NotificationActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityNotificationBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        // 检查通知权限
         checkPostNotificationPermission()
-
+        // 创建
         notificationManager = NotificationManagerCompat.from(this)
 
-        binding.btnCreateNotificationChannel.setOnClickListener {
+        initListener()
+    }
+
+    private fun initListener() {
+        // <editor-fold defaultState="collapsed" desc="渠道相关">
+        binding.btnCreateChannel.setOnClickListener {
             val name = "通知渠道"
             val description = "用于测试的通知渠道"
             val importance = NotificationManager.IMPORTANCE_DEFAULT
             createNotificationChannel(name, description, importance, CHANNEL_ID, GROUP_ID)
         }
-        binding.btnReadNotificationChannel.setOnClickListener {
+        binding.btnReadChannel.setOnClickListener {
             readNotificationChannel(CHANNEL_ID)
         }
         binding.btnOpenChannelSettings.setOnClickListener {
             openChannelSettings(packageName, CHANNEL_ID)
         }
-
         binding.btnDeleteChannel.setOnClickListener {
             deleteChannel(CHANNEL_ID)
         }
@@ -69,19 +77,47 @@ class NotificationActivity : AppCompatActivity() {
         binding.btnDeleteChannelGroup.setOnClickListener {
             deleteChannelGroup(GROUP_ID)
         }
+        // </editor-fold>
+
+        // <editor-fold defaultState="collapsed" desc="通知相关">
+        binding.btnCreateNotification.setOnClickListener {
+            val intent = Intent(this, NotificationActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            }
+            val pendingIntent =
+                PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE)
+            createNotification("标题", "内容", pendingIntent)
+        }
+        binding.btnUpdateNotification.setOnClickListener {
+            updateNotification("标题一", "内容一")
+        }
+        binding.btnDeleteNotification.setOnClickListener {
+            deleteNotification()
+        }
+        // </editor-fold>
     }
 
     /**
      * 检查通知权限
      */
     private fun checkPostNotificationPermission() {
+        if (!checkPermission() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val permission = Manifest.permission.POST_NOTIFICATIONS
+            // 请求权限
+            notificationPermissionLauncher.launch(permission)
+        }
+    }
+
+    /**
+     * 是否有通知权限
+     */
+    private fun checkPermission(): Boolean {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             val permission = Manifest.permission.POST_NOTIFICATIONS
             val checkSelfPermission = ContextCompat.checkSelfPermission(this, permission)
-            if (checkSelfPermission != PackageManager.PERMISSION_GRANTED) {
-                // 请求权限
-                notificationPermissionLauncher.launch(permission)
-            }
+            return checkSelfPermission == PackageManager.PERMISSION_GRANTED
+        } else {
+            return true
         }
     }
 
@@ -142,5 +178,47 @@ class NotificationActivity : AppCompatActivity() {
 
     private fun deleteChannelGroup(groupId: String) {
         notificationManager.deleteNotificationChannelGroup(groupId)
+    }
+
+    /**
+     * 创建通知
+     */
+    private fun createNotification(title: String, content: String, intent: PendingIntent) {
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
+            // 图标
+            .setSmallIcon(R.mipmap.ic_launcher)
+            // 标题
+            .setContentTitle(title)
+            // 内容
+            .setContentText(content)
+            // 重要性
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setContentIntent(intent)
+            // 点击后自动移除
+            .setAutoCancel(true)
+        if (checkPermission()) {
+            notificationManager.notify(NOTIFICATION_ID, builder.build())
+        }
+    }
+
+    private fun updateNotification(title: String, content: String) {
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
+            // 图标
+            .setSmallIcon(R.mipmap.ic_launcher)
+            // 标题
+            .setContentTitle(title)
+            // 内容
+            .setContentText(content)
+            // 重要性
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+        if (checkPermission()) {
+            notificationManager.notify(NOTIFICATION_ID, builder.build())
+        }
+    }
+
+    private fun deleteNotification() {
+        if (checkPermission()) {
+            notificationManager.cancel(NOTIFICATION_ID)
+        }
     }
 }
